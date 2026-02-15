@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agency Guard - Zero Trust Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <nav class="sidebar">
+            <div class="logo">
+                <img src="assets/shield-icon.svg" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB...'"><!-- Placeholder Icon -->
+                <span>Agency Guard</span>
+            </div>
+            
+            <ul class="nav-links">
+                <li class="active" data-panel="panel-traffic">
+                    <span class="icon">📊</span> Traffic Monitor
+                </li>
+                <li data-panel="panel-dlp">
+                    <span class="icon">📄</span> DLP Scanner
+                </li>
+                <li data-panel="panel-tnc">
+                    <span class="icon">⚖️</span> T&C Risk
+                </li>
+                <li data-panel="panel-logs">
+                    <span class="icon">📜</span> System Logs
+                </li>
+            </ul>
+
+            <div class="footer">
+                <div class="status-indicator online">
+                    <span class="dot"></span> Proxy Active
+                </div>
+            </div>
+        </nav>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="content">
+            
+            <!-- PANEL 1: TRAFFIC MONITOR -->
+            <section id="panel-traffic" class="panel active">
+                <header>
+                    <h1>Live Traffic Monitor (mitmproxy)</h1>
+                    <div class="controls">
+                        <button id="refresh-traffic" class="btn-secondary">Auto-Refresh: ON</button>
+                    </div>
+                </header>
+
+                <div class="card table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Method</th>
+                                <th>Domain</th>
+                                <th>Path</th>
+                                <th>Type</th>
+                                <th>Size</th>
+                            </tr>
+                        </thead>
+                        <tbody id="traffic-table-body">
+                            <!-- Rows injected via JS -->
+                            <tr><td colspan="6" class="placeholder">Waiting for traffic...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- PANEL 2: DLP SCANNER -->
+            <section id="panel-dlp" class="panel">
+                <header>
+                    <h1>DLP File Scanner</h1>
+                    <p class="subtitle">Upload PDF documents to detect sensitive data (SSN, API Keys, PII)</p>
+                </header>
+
+                <div class="dlp-grid">
+                    <!-- Upload Zone -->
+                    <div class="card upload-zone" id="drop-zone">
+                        <div class="icon-lg">📁</div>
+                        <h3>Drag & Drop PDF here</h3>
+                        <p>or click to browse</p>
+                        <input type="file" id="file-input" accept=".pdf" hidden>
+                    </div>
+
+                    <!-- Results Area -->
+                    <div class="card results-zone hidden" id="dlp-results">
+                        <div class="score-header">
+                            <h2>Scan Results</h2>
+                            <span class="badge danger" id="dlp-badge">SENSITIVE DATA FOUND</span>
+                        </div>
+                        
+                        <div class="findings-list" id="findings-list">
+                            <!-- Findings injected via JS -->
+                        </div>
+
+                        <div class="preview-box">
+                            <h4>Text Preview</h4>
+                            <p id="text-preview" class="code-block">...</p>
+                        </div>
+                        
+                        <div class="actions">
+                            <button class="btn-primary" id="redact-btn">Generate Redacted PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PANEL 3: T&C RISK SCANNER -->
+            <section id="panel-tnc" class="panel">
+                <header>
+                    <h1>Terms & Conditions Analyzer</h1>
+                    <p class="subtitle">Paste legal text to detect risky clauses (Arbitration, Data Selling, Tracking)</p>
+                </header>
+
+                <div class="tnc-layout">
+                    <div class="input-col">
+                        <textarea id="tnc-input" placeholder="Paste Terms & Conditions text here..."></textarea>
+                        <button id="analyze-tnc-btn" class="btn-primary full-width">Analyze Risk</button>
+                    </div>
+
+                    <div class="output-col">
+                        <div class="card risk-score-card hidden" id="risk-card">
+                            <div class="gauge-container">
+                                <svg viewBox="0 0 36 36" class="circular-chart orange">
+                                    <path class="circle-bg"
+                                      d="M18 2.0845
+                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    />
+                                    <path class="circle"
+                                      stroke-dasharray="60, 100"
+                                      d="M18 2.0845
+                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    />
+                                    <text x="18" y="20.35" class="percentage">60</text>
+                                </svg>
+                                <h3>Risk Score</h3>
+                            </div>
+                            
+                            <ul class="risk-list" id="tnc-findings">
+                                <!-- Findings injected via JS -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PANEL 4: LOGS -->
+            <section id="panel-logs" class="panel">
+                <header><h1>System Logs</h1></header>
+                <div class="card log-terminal">
+                    <pre id="system-logs">
+[INFO] System started at <span id="start-time"></span>
+[INFO] Flask Backend: ACTIVE (Port 5000)
+[INFO] Mitmproxy: ACTIVE (Port 8080)
+                    </pre>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
