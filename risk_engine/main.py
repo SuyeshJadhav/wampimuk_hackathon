@@ -273,3 +273,66 @@ def evaluate(request: EvaluateRequest):
         "details": module_results
 
     }
+
+
+
+# -----------------------------------
+# TnC ANALYSIS ENDPOINT (dedicated)
+# -----------------------------------
+# Called by the mitmproxy response() hook when a T&C / Privacy page
+# is detected, OR directly by the frontend for manual analysis.
+
+class TnCRequest(BaseModel):
+    url: str = ""
+    domain: str = ""
+    tnc_text: str
+
+class TnCResponse(BaseModel):
+    url: str
+    domain: str
+    tnc_score: int
+    status: str
+    findings: List[Dict[str, Any]]
+
+@app.post("/analyze-tnc", response_model=TnCResponse)
+def analyze_tnc(request: TnCRequest):
+    """
+    Standalone T&C / Privacy Policy analysis.
+
+    Accepts raw text from a T&C page and returns risk findings.
+    This is separate from /evaluate because:
+      - It runs on RESPONSE bodies (not request bodies)
+      - It doesn't need DLP or Rookie Score
+      - The frontend can call it directly for user-uploaded TnC text
+    """
+    if not request.tnc_text or not request.tnc_text.strip():
+        return {
+            "url": request.url,
+            "domain": request.domain,
+            "tnc_score": 0,
+            "status": "SAFE",
+            "findings": []
+        }
+
+    try:
+        result = tnc_analyzer.analyze_text(request.tnc_text)
+
+        print(f"[TNC] {request.domain} | Score: {result['tnc_score']} | Status: {result['status']}")
+
+        return {
+            "url": request.url,
+            "domain": request.domain,
+            "tnc_score": result["tnc_score"],
+            "status": result["status"],
+            "findings": result["findings"]
+        }
+
+    except Exception as e:
+        print(f"[TNC ERROR] {request.domain} | {e}")
+        return {
+            "url": request.url,
+            "domain": request.domain,
+            "tnc_score": 0,
+            "status": "ERROR",
+            "findings": [{"category": "error", "risk_level": 0, "count": 0, "snippet": str(e)}]
+        }

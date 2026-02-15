@@ -4,7 +4,7 @@ from mitmproxy import http, ctx
 import requests
 import json
 
-import utils 
+import utils
 import config
 
 class AgencyGuard:
@@ -16,7 +16,7 @@ class AgencyGuard:
 
     def request(self, flow: http.HTTPFlow):
         """
-        Called on every HTTP request
+        Called on every HTTP request — DLP + Rookie Score analysis.
         """
         try:
             url = flow.request.pretty_url
@@ -54,11 +54,11 @@ class AgencyGuard:
 
         try:
             response = requests.post(
-    config.RISK_ENGINE_URL,
-    json=payload,
-    timeout=3,
-    proxies={"http": None, "https": None}
-)
+                config.RISK_ENGINE_URL,
+                json=payload,
+                timeout=3,
+                proxies={"http": None, "https": None}
+            )
             result = response.json()
             ctx.log.info(result)
         except Exception as e:
@@ -79,5 +79,81 @@ class AgencyGuard:
             # Optionally inject warning in response or log only
         else:
             ctx.log.info(f"[ALLOWED] {domain} | {method} {normalized_url}")
+
+
+    def response(self, flow: http.HTTPFlow):
+        """
+        Called on every HTTP response.
+        Detects T&C / Privacy Policy pages by analyzing the CONTENT
+        of the response (not just the URL), then sends to Risk Engine
+        for clause-level risk analysis.
+        """
+        if not config.ENABLE_TNC_ANALYSIS:
+            return
+
+        # Only analyze HTML responses
+        content_type = flow.response.headers.get("content-type", "").lower()
+        if "text/html" not in content_type:
+            return
+
+        # Skip non-200 responses
+        if flow.response.status_code != 200:
+            return
+
+        try:
+            html_body = flow.response.get_text(strict=False) or ""
+        except Exception:
+            return
+
+        # Don't process tiny or huge pages
+        if len(html_body) < 500 or len(html_body) > 500_000:
+            return
+
+        url = flow.request.pretty_url
+        domain = utils.extract_domain(url)
+
+        # Strip HTML to plain text
+        plain_text = utils.strip_html_to_text(html_body)
+
+        # ── Content-based detection ──────────────────────────────────
+        # Check if this page IS a T&C / privacy document based on
+        # its actual content — works regardless of URL structure.
+        if not utils.is_tnc_page(url, plain_text):
+            return
+
+        ctx.log.info(f"[TNC DETECTED] {domain} | {url}")
+
+        # Send to Risk Engine for clause analysis
+        payload = {
+            "url": url,
+            "domain": domain,
+            "tnc_text": plain_text[:50_000],  # Cap at 50k chars
+        }
+
+        try:
+            resp = requests.post(
+                config.TNC_ENGINE_URL,
+                json=payload,
+                timeout=5,
+                proxies={"http": None, "https": None}
+            )
+            result = resp.json()
+            status = result.get("status", "UNKNOWN")
+            score = result.get("tnc_score", 0)
+
+            ctx.log.info(
+                f"[TNC RESULT] {domain} | Status: {status} | Score: {score}"
+            )
+
+            # Log individual findings
+            for finding in result.get("findings", []):
+                ctx.log.info(
+                    f"  ⚠ {finding['category']}: risk={finding['risk_level']}, "
+                    f"count={finding['count']}"
+                )
+
+        except Exception as e:
+            ctx.log.warn(f"Failed to send TnC analysis: {e}")
+
 
 addons = [AgencyGuard()]

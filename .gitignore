@@ -3,4 +3,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-data/whois_cache.json																																			
+data/whois_cache.json
+SECURITY_ANALYSIS.md

@@ -1,21 +1,22 @@
 """
 redaction.py — Local-first text & visual PDF redaction for the Agency Guard DLP pipeline.
 
-Usage from a FastAPI evaluate endpoint:
+Automatic mode (RECOMMENDED):
     from file_analysis import extract_text_from_pdf, redact_text, generate_redacted_pdf
 
     # 1. Extract text
     result     = extract_text_from_pdf(pdf_bytes)
     raw_text   = result["text"]
 
-    # 2. Run your DLP / Risk-Engine scanner to produce findings
-    findings   = risk_engine.scan(raw_text)   # e.g. ["123-45-6789", "sk-abc123"]
+    # 2. Redact — DLP regex patterns are applied AUTOMATICALLY
+    safe_text  = redact_text(raw_text)
 
-    # 3. Redact the text (for logging / downstream consumption)
-    safe_text  = redact_text(raw_text, findings)
+    # 3. Generate a visually redacted PDF — also automatic
+    safe_pdf   = generate_redacted_pdf(pdf_bytes)
 
-    # 4. (Advanced) Generate a visually redacted PDF
-    safe_pdf   = generate_redacted_pdf(pdf_bytes, findings)
+Manual mode (pass explicit strings to redact):
+    safe_text  = redact_text(raw_text, findings=["123-45-6789", "sk-abc123"])
+    safe_pdf   = generate_redacted_pdf(pdf_bytes, findings=["123-45-6789"])
 
 No external APIs are used — all processing happens locally via pdfplumber + ReportLab.
 """
@@ -25,11 +26,21 @@ from __future__ import annotations
 import io
 import logging
 import re
-from typing import Any
+import sys
+import os
+from typing import Any, Optional
 
 import pdfplumber
 from reportlab.lib.units import inch  # noqa: F401 – kept for convenience
 from reportlab.pdfgen import canvas as rl_canvas
+
+# ── Import DLP regex patterns from the risk_engine ──────────────────────────
+# Add the project root to sys.path so we can import risk_engine as a package
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from risk_engine.dlp_rules import DLP_PATTERNS
 
 logger = logging.getLogger(__name__)
 
@@ -38,81 +49,130 @@ REDACTION_PLACEHOLDER = "[REDACTED]"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  0.  DLP REGEX SCANNER  (text → list of matched strings)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def scan_text(text: str) -> list[dict[str, Any]]:
+    """
+    Scan text using ALL precompiled DLP regex patterns from ``dlp_rules.py``.
+
+    Returns
+    -------
+    list[dict]
+        Each dict contains::
+
+            {
+                "type": "SSN" | "CREDIT_CARD" | ...,
+                "match": "<the actual matched string>",
+                "start": int,   # start index in text
+                "end": int,     # end index in text
+            }
+
+        Sorted by start position.  Duplicates are kept so callers can count.
+    """
+    if not text:
+        return []
+
+    results: list[dict[str, Any]] = []
+
+    for data_type, pattern in DLP_PATTERNS.items():
+        for m in pattern.finditer(text):
+            results.append({
+                "type": data_type,
+                "match": m.group(0),
+                "start": m.start(),
+                "end": m.end(),
+            })
+
+    # Sort by position so redaction order is deterministic
+    results.sort(key=lambda r: r["start"])
+    return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  1.  TEXT REDACTION  (string → string)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def redact_text(
     text: str,
-    findings: list[str],
+    findings: Optional[list[str]] = None,
     *,
     placeholder: str = REDACTION_PLACEHOLDER,
-    case_sensitive: bool = False,
 ) -> str:
     """
-    Replace every occurrence of each finding in *text* with *placeholder*.
+    Replace every occurrence of sensitive data in *text* with *placeholder*.
+
+    **Auto mode** (``findings`` is ``None``):
+        Uses the DLP regex patterns from ``risk_engine/dlp_rules.py`` to
+        dynamically detect SSNs, credit cards, emails, API keys, etc.
+
+    **Manual mode** (``findings`` is a list of strings):
+        Treats each string as a literal and replaces all occurrences.
 
     Parameters
     ----------
     text : str
         The raw text extracted from a document.
-    findings : list[str]
-        Sensitive strings discovered by the Risk Engine / DLP scanner
-        (e.g. SSNs, API keys, email addresses).
+    findings : list[str] or None, optional
+        If provided, literal strings to redact.
+        If ``None`` (default), DLP regex patterns are used automatically.
     placeholder : str, optional
         Replacement token (default ``[REDACTED]``).
-    case_sensitive : bool, optional
-        If ``False`` (default), matching is case-insensitive.
 
     Returns
     -------
     str
         The sanitised text with all findings replaced.
     """
-    if not text or not findings:
+    if not text:
         return text
 
-    sanitised = text
+    # ── AUTO MODE: Use DLP regex patterns ────────────────────────────────
+    if findings is None:
+        sanitised = text
+        for data_type, pattern in DLP_PATTERNS.items():
+            sanitised = pattern.sub(placeholder, sanitised)
+        return sanitised
 
+    # ── MANUAL MODE: Literal string replacement (backwards compat) ───────
+    sanitised = text
     for finding in findings:
         if not finding:
             continue
-
-        # Escape the finding so it is treated as a literal, not a regex
-        pattern = re.escape(finding)
-        flags = 0 if case_sensitive else re.IGNORECASE
-        sanitised = re.sub(pattern, placeholder, sanitised, flags=flags)
+        escaped = re.escape(finding)
+        sanitised = re.sub(escaped, placeholder, sanitised, flags=re.IGNORECASE)
 
     return sanitised
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  2.  VISUAL PDF REDACTION  (bytes → bytes)   — Advanced / Skeleton
+#  2.  VISUAL PDF REDACTION  (bytes → bytes)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def generate_redacted_pdf(
     file_buffer: bytes,
-    findings: list[str],
+    findings: Optional[list[str]] = None,
     *,
     placeholder: str = REDACTION_PLACEHOLDER,
 ) -> dict[str, Any]:
     """
-    Produce a new PDF with sensitive strings covered by opaque black rectangles.
+    Produce a new PDF with sensitive data covered by opaque black rectangles.
 
-    **This is a best-effort skeleton.**  It works well for simple, single-column
-    PDFs where pdfplumber can reliably report character-level bounding boxes.
-    Production hardening (multi-column layouts, rotated text, embedded images
-    containing text, etc.) is marked with TODO comments.
+    **Auto mode** (``findings`` is ``None``):
+        Uses DLP regex patterns to automatically detect sensitive regions.
+
+    **Manual mode** (``findings`` is a list of strings):
+        Redacts the exact literal strings provided.
 
     The redaction is *irreversible* — the original text is not present in the
-    output PDF; a black rectangle is drawn over the matching region on a blank
-    page that is overlaid with only the redacted content.
+    output PDF; a black rectangle is drawn over the matching region.
 
     Parameters
     ----------
     file_buffer : bytes
         Raw bytes of the original PDF.
-    findings : list[str]
-        Sensitive strings to redact.
+    findings : list[str] or None, optional
+        Literal strings to redact. If ``None``, DLP regex is used automatically.
 
     Returns
     -------
@@ -120,9 +180,10 @@ def generate_redacted_pdf(
         On success::
 
             {
-                "redacted_pdf": bytes,   # The new PDF file content
+                "redacted_pdf": bytes,
                 "pages_processed": int,
                 "redactions_applied": int,
+                "findings_summary": [{"type": str, "count": int}, ...],
             }
 
         On failure::
@@ -134,9 +195,9 @@ def generate_redacted_pdf(
             }
     """
 
-    if not file_buffer or not findings:
+    if not file_buffer:
         return {
-            "redacted_pdf": file_buffer or b"",
+            "redacted_pdf": b"",
             "pages_processed": 0,
             "redactions_applied": 0,
         }
@@ -146,6 +207,8 @@ def generate_redacted_pdf(
         output_buffer = io.BytesIO()
 
         total_redactions = 0
+        type_counts: dict[str, int] = {}
+        pages_count = 0
 
         with pdfplumber.open(pdf_stream) as pdf:
             # Determine page size from the first page (fallback to Letter)
@@ -157,81 +220,82 @@ def generate_redacted_pdf(
                 page_width, page_height = 612.0, 792.0  # Letter
 
             c = rl_canvas.Canvas(output_buffer, pagesize=(page_width, page_height))
+            pages_count = len(pdf.pages)
 
             for page_num, page in enumerate(pdf.pages, start=1):
                 pw = float(page.width)
                 ph = float(page.height)
                 c.setPageSize((pw, ph))
 
-                # ── Step A: Extract ALL text with character-level bounding boxes ──
-                chars = page.chars  # list of dicts with x0, y0, x1, y1, text keys
-
-                # Rebuild the full page text from chars
+                # ── Step A: Extract characters with bounding boxes ───────
+                chars = page.chars
                 page_text = "".join(ch.get("text", "") for ch in chars)
 
-                # ── Step B: Find matches in the page text ──────────────────────
+                # ── Step B: Find sensitive regions ───────────────────────
                 regions_to_redact: list[tuple[float, float, float, float]] = []
-
-                for finding in findings:
-                    if not finding:
-                        continue
-                    start = 0
-                    lower_page = page_text.lower()
-                    lower_finding = finding.lower()
-
-                    while True:
-                        idx = lower_page.find(lower_finding, start)
-                        if idx == -1:
-                            break
-                        end_idx = idx + len(finding)
-
-                        # Gather bounding boxes of matched characters
-                        matched_chars = chars[idx:end_idx]
-                        if matched_chars:
-                            x0 = min(float(ch["x0"]) for ch in matched_chars)
-                            x1 = max(float(ch["x1"]) for ch in matched_chars)
-                            # pdfplumber y-axis: top=0.  ReportLab y-axis: bottom=0.
-                            top = min(float(ch["top"]) for ch in matched_chars)
-                            bottom = max(float(ch["bottom"]) for ch in matched_chars)
-
-                            # Convert pdfplumber coords → ReportLab coords
-                            rl_y0 = ph - bottom
-                            rl_y1 = ph - top
-                            regions_to_redact.append((x0, rl_y0, x1, rl_y1))
-                            total_redactions += 1
-
-                        start = end_idx
-
-                # ── Step C: Redraw text, replacing redacted regions with boxes ──
-                #
-                # Strategy (irreversible):
-                #   1. Draw the full page text char-by-char
-                #   2. Draw opaque BLACK rectangles over every redacted region
-                #   3. The original text underneath is NOT preserved — we only
-                #      write non-redacted chars to the canvas.
-                #
-                # TODO: Handle embedded images, vector graphics, annotations.
-                # TODO: Preserve fonts / sizes (currently uses Helvetica fallback).
-
-                c.setFont("Helvetica", 10)
-
-                # Draw only non-redacted characters
                 redacted_indices: set[int] = set()
-                for finding in findings:
-                    if not finding:
-                        continue
-                    start = 0
-                    while True:
-                        idx = lower_page.find(finding.lower(), start)
-                        if idx == -1:
-                            break
-                        for i in range(idx, idx + len(finding)):
-                            redacted_indices.add(i)
-                        start = idx + len(finding)
+
+                if findings is None:
+                    # AUTO MODE — use DLP regex patterns
+                    for data_type, pattern in DLP_PATTERNS.items():
+                        for m in pattern.finditer(page_text):
+                            idx = m.start()
+                            end_idx = m.end()
+                            matched_chars = chars[idx:end_idx]
+
+                            if matched_chars:
+                                x0 = min(float(ch["x0"]) for ch in matched_chars)
+                                x1 = max(float(ch["x1"]) for ch in matched_chars)
+                                top = min(float(ch["top"]) for ch in matched_chars)
+                                bottom = max(float(ch["bottom"]) for ch in matched_chars)
+
+                                rl_y0 = ph - bottom
+                                rl_y1 = ph - top
+                                regions_to_redact.append((x0, rl_y0, x1, rl_y1))
+                                total_redactions += 1
+
+                                type_counts[data_type] = type_counts.get(data_type, 0) + 1
+
+                            for i in range(idx, end_idx):
+                                redacted_indices.add(i)
+                else:
+                    # MANUAL MODE — literal string matching
+                    lower_page = page_text.lower()
+                    for finding in findings:
+                        if not finding:
+                            continue
+                        start = 0
+                        lower_finding = finding.lower()
+
+                        while True:
+                            idx = lower_page.find(lower_finding, start)
+                            if idx == -1:
+                                break
+                            end_idx = idx + len(finding)
+                            matched_chars = chars[idx:end_idx]
+
+                            if matched_chars:
+                                x0 = min(float(ch["x0"]) for ch in matched_chars)
+                                x1 = max(float(ch["x1"]) for ch in matched_chars)
+                                top = min(float(ch["top"]) for ch in matched_chars)
+                                bottom = max(float(ch["bottom"]) for ch in matched_chars)
+
+                                rl_y0 = ph - bottom
+                                rl_y1 = ph - top
+                                regions_to_redact.append((x0, rl_y0, x1, rl_y1))
+                                total_redactions += 1
+
+                            for i in range(idx, end_idx):
+                                redacted_indices.add(i)
+
+                            start = end_idx
+
+                # ── Step C: Redraw — only non-redacted characters ────────
+                c.setFont("Helvetica", 10)
 
                 for i, ch in enumerate(chars):
                     if i in redacted_indices:
-                        continue  # skip — will be covered by black box
+                        continue
                     x = float(ch["x0"])
                     y = ph - float(ch["bottom"])
                     try:
@@ -242,7 +306,7 @@ def generate_redacted_pdf(
                 # Draw black rectangles over redacted regions
                 c.setFillColorRGB(0, 0, 0)
                 for (x0, y0, x1, y1) in regions_to_redact:
-                    padding = 1  # slight padding around text
+                    padding = 1
                     c.rect(
                         x0 - padding,
                         y0 - padding,
@@ -252,14 +316,20 @@ def generate_redacted_pdf(
                         stroke=False,
                     )
 
-                c.showPage()  # finalise current page
+                c.showPage()
 
             c.save()
 
+        # Build findings summary for the response
+        findings_summary = [
+            {"type": t, "count": n} for t, n in type_counts.items()
+        ]
+
         return {
             "redacted_pdf": output_buffer.getvalue(),
-            "pages_processed": len(pdf.pages) if 'pdf' in dir() else 0,
+            "pages_processed": pages_count,
             "redactions_applied": total_redactions,
+            "findings_summary": findings_summary,
         }
 
     except Exception as exc:

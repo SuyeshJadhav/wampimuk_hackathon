@@ -12,5 +12,6 @@ DLP_ALERT_KEYWORDS = ["SSN", "API_KEY", "CONFIDENTIAL"]
 ENABLE_DLP = True
 ENABLE_TNC_ANALYSIS = True
 
-# Risk Engine API URL
+# Risk Engine API URLs
 RISK_ENGINE_URL = "http://127.0.0.1:8000/evaluate"
+TNC_ENGINE_URL = "http://127.0.0.1:8000/analyze-tnc"
