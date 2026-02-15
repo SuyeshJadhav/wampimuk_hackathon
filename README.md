@@ -1,6 +1,6 @@
 # AgencyGuard Proxy + Risk Engine
 
-AgencyGuard runs at the OS network level, not just inside a browser, so it can inspect and control outbound traffic from apps system-wide. By combining destination risk scoring with DLP-based leak prevention, it blocks sensitive data exposure in real time and directly addresses core data privacy risks
+AgencyGuard runs at the OS network level, not just inside a browser, so it can inspect and control outbound traffic from apps system-wide. By combining destination risk scoring with DLP-based leak prevention, it blocks sensitive data exposure in real time and directly addresses core data privacy risks.
 
 AgencyGuard is a local traffic risk-checking prototype built with:
 
