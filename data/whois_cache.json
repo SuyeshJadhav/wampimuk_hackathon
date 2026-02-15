@@ -1,0 +1,9 @@
+{
+  "domains": {
+    "example.com": {
+      "cached_at": 1771130508,
+      "age_days": null,
+      "error": "WHOIS lookup failed: AttributeError"
+    }
+  }
+}
