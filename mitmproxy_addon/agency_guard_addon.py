@@ -60,6 +60,7 @@ class AgencyGuard:
     proxies={"http": None, "https": None}
 )
             result = response.json()
+            ctx.log.info(result)
         except Exception as e:
             ctx.log.warn(f"Failed to call Risk Engine: {e}")
             result = {"decision": "ALLOW", "score": 0, "details": {}}

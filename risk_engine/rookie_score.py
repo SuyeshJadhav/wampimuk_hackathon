@@ -221,4 +221,5 @@ def compute_rookie_score(domain: str, method: str, headers: Dict[str, Any], file
     score = max(0, min(100, score))
 
     trust = "HIGH" if score < 40 else ("MED" if score < 70 else "LOW")
+    print(score)
     return {"rookie_score": score, "trust_tier": trust, "reasons": reasons, "signals": signals}
