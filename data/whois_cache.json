@@ -199,6 +199,36 @@
       "cached_at": 1771145122,
       "age_days": 4665,
       "creation_date_utc": "2013-05-08T11:01:47+00:00"
+    },
+    "azure.com": {
+      "cached_at": 1771145924,
+      "age_days": 11436,
+      "creation_date_utc": "1994-10-25T04:00:00+00:00"
+    },
+    "gvt1.com": {
+      "cached_at": 1771145928,
+      "age_days": 6558,
+      "creation_date_utc": "2008-03-03T08:00:00+00:00"
+    },
+    "googleadservices.com": {
+      "cached_at": 1771146504,
+      "age_days": 8277,
+      "creation_date_utc": "2003-06-19T07:00:00+00:00"
+    },
+    "ytimg.com": {
+      "cached_at": 1771146505,
+      "age_days": 6640,
+      "creation_date_utc": "2007-12-11T22:38:13+00:00"
+    },
+    "youtube.com": {
+      "cached_at": 1771146506,
+      "age_days": 7670,
+      "creation_date_utc": "2005-02-15T05:13:12+00:00"
+    },
+    "visualstudio.com": {
+      "cached_at": 1771147720,
+      "age_days": 10561,
+      "creation_date_utc": "1997-03-18T05:00:00+00:00"
     }
   }
 }
