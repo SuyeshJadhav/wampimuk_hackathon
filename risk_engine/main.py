@@ -189,40 +189,40 @@ def evaluate(request: EvaluateRequest):
         )
 
 
-        # -------------------
-        # Rookie Score
-        # -------------------
-
-        try:
-            rookie_result = compute_rookie_score(
-                domain=request.domain,
-                method=request.method,
-                headers=request.headers,
-                files=request.files
-            )
-            module_results.append(
-                ModuleResult(
-                    module="ROOKIE_SCORE",
-                    score=rookie_result["rookie_score"],
-                    details={
-                        "trust_tier": rookie_result["trust_tier"],
-                        "reasons": rookie_result["reasons"],
-                        "signals": rookie_result["signals"]
-                    }
-                )
-            )
-
-        except Exception as e:
-            module_results.append(
-                ModuleResult(
-                    module="ROOKIE_SCORE",
-                    score=0,
-                    details={"error": str(e)}
-                )
-            )
 
 
         # Future modules go here
+    # -------------------
+    # Rookie Score
+    # -------------------
+
+    try:
+        rookie_result = compute_rookie_score(
+            domain=request.domain,
+            method=request.method,
+            headers=request.headers,
+            files=request.files
+        )
+        module_results.append(
+            ModuleResult(
+                module="ROOKIE_SCORE",
+                score=rookie_result["rookie_score"],
+                details={
+                    "trust_tier": rookie_result["trust_tier"],
+                    "reasons": rookie_result["reasons"],
+                    "signals": rookie_result["signals"]
+                }
+            )
+        )
+
+    except Exception as e:
+        module_results.append(
+            ModuleResult(
+                module="ROOKIE_SCORE",
+                score=0,
+                details={"error": str(e)}
+            )
+        )
 
 
     # -----------------------------------
