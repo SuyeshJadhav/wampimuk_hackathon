@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List
 
 from .dlp_scanner import DLPScanner
+from .rookie_score import compute_rookie_score
 
 # Optional module imports
 try:
@@ -192,20 +193,32 @@ def evaluate(request: EvaluateRequest):
         # Rookie Score
         # -------------------
 
-        if rookie_score:
-
-            rookie_result = rookie_score.calculate(request.domain)
-
+        try:
+            rookie_result = compute_rookie_score(
+                domain=request.domain,
+                method=request.method,
+                headers=request.headers,
+                files=request.files
+            )
             module_results.append(
-
                 ModuleResult(
-
                     module="ROOKIE_SCORE",
-                    score=rookie_result["score"],
-                    details=rookie_result.get("details")
-
+                    score=rookie_result["rookie_score"],
+                    details={
+                        "trust_tier": rookie_result["trust_tier"],
+                        "reasons": rookie_result["reasons"],
+                        "signals": rookie_result["signals"]
+                    }
                 )
+            )
 
+        except Exception as e:
+            module_results.append(
+                ModuleResult(
+                    module="ROOKIE_SCORE",
+                    score=0,
+                    details={"error": str(e)}
+                )
             )
 
 
