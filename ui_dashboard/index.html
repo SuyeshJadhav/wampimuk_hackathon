@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgencyGuard Dashboard</title>
+  <style>
+    :root {
+      --bg: #081226;
+      --panel: #0f1d38;
+      --panel-2: #132449;
+      --text: #e5ebfb;
+      --muted: #98a8cf;
+      --border: #26406b;
+      --ok: #27c26f;
+      --warn: #f5a623;
+      --block: #ff5b6e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(1200px 600px at 20% -10%, #12356a 0%, var(--bg) 60%);
+      font-family: ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0; font-size: 34px; letter-spacing: 0.3px; }
+    .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .cards {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      padding: 14px;
+    }
+    .card .label { font-size: 14px; color: var(--muted); font-weight: 700; }
+    .card .value { margin-top: 4px; font-size: 44px; font-weight: 800; line-height: 1; }
+    .value.ok { color: var(--ok); }
+    .value.warn { color: var(--warn); }
+    .value.block { color: var(--block); }
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    select, input, button {
+      color: var(--text);
+      background: #0a152c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    input { min-width: 240px; }
+    button { cursor: pointer; }
+    .section {
+      margin-top: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      padding: 10px;
+    }
+    .section h2 { margin: 6px 8px 10px; font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 700; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-weight: 800;
+      font-size: 12px;
+    }
+    .pill.allow { color: var(--ok); border-color: #1f6f46; background: #103324; }
+    .pill.warn { color: var(--warn); border-color: #6f5117; background: #3a2c10; }
+    .pill.block { color: var(--block); border-color: #7a2631; background: #40171d; }
+    .pill.bg { color: #90a2ce; border-color: #3a4f7e; background: #172440; }
+    @media (max-width: 920px) {
+      .cards { grid-template-columns: repeat(2, minmax(170px, 1fr)); }
+      .hide-sm { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>AgencyGuard Demo Dashboard</h1>
+      <div class="muted" id="updatedAt">Loading...</div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><div class="label">Total Requests</div><div class="value" id="total">0</div></div>
+      <div class="card"><div class="label">Allowed</div><div class="value ok" id="allow">0</div></div>
+      <div class="card"><div class="label">Warnings</div><div class="value warn" id="warn">0</div></div>
+      <div class="card"><div class="label">Blocked</div><div class="value block" id="block">0</div></div>
+    </div>
+
+    <div class="controls">
+      <label class="muted">Decision</label>
+      <select id="decision">
+        <option value="">All</option>
+        <option value="BLOCK">BLOCK</option>
+        <option value="WARN">WARN</option>
+        <option value="ALLOW">ALLOW</option>
+      </select>
+      <label class="muted">Search</label>
+      <input id="search" placeholder="domain or url contains... (e.g. httpbin)" />
+      <label><input type="checkbox" id="showBg" /> <span class="muted">Show background apps</span></label>
+      <button id="refresh">Refresh</button>
+      <span class="muted">Auto refresh: 2s</span>
+    </div>
+
+    <div class="section">
+      <h2>Recent Decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Decision</th>
+            <th>Score</th>
+            <th>Method</th>
+            <th>Domain</th>
+            <th class="hide-sm">Rookie</th>
+            <th class="hide-sm">DLP</th>
+            <th class="hide-sm">DLP Types</th>
+            <th class="hide-sm">Traffic</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Top Domains / DLP Types</h2>
+      <table>
+        <thead><tr><th>Top Domains</th><th>DLP Types</th></tr></thead>
+        <tbody id="summaryRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const decisionEl = $("decision");
+    const searchEl = $("search");
+    const showBgEl = $("showBg");
+
+    function pill(decision) {
+      const cls = decision === "BLOCK" ? "block" : decision === "WARN" ? "warn" : "allow";
+      return `<span class="pill ${cls}">${decision}</span>`;
+    }
+
+    function trafficPill(isBg) {
+      return isBg ? `<span class="pill bg">BACKGROUND</span>` : `<span class="pill allow">INTERACTIVE</span>`;
+    }
+
+    async function getJson(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+
+    function buildParams() {
+      const params = new URLSearchParams();
+      params.set("limit", "200");
+      if (decisionEl.value) params.set("decision", decisionEl.value);
+      if (searchEl.value.trim()) params.set("q", searchEl.value.trim());
+      params.set("include_background", showBgEl.checked ? "true" : "false");
+      return params.toString();
+    }
+
+    async function refresh() {
+      const qs = buildParams();
+      const [summary, events] = await Promise.all([
+        getJson(`/api/summary?${qs}`),
+        getJson(`/api/events?${qs}`),
+      ]);
+
+      $("total").textContent = summary.total ?? 0;
+      $("allow").textContent = summary.decisions?.ALLOW ?? 0;
+      $("warn").textContent = summary.decisions?.WARN ?? 0;
+      $("block").textContent = summary.decisions?.BLOCK ?? 0;
+
+      $("rows").innerHTML = events.map((e) => `
+        <tr>
+          <td class="mono">${new Date(e.timestamp).toLocaleTimeString()}</td>
+          <td>${pill(e.decision)}</td>
+          <td class="mono">${e.score}</td>
+          <td class="mono">${e.method}</td>
+          <td class="mono">${e.domain}</td>
+          <td class="hide-sm mono">${e.rookie_score}</td>
+          <td class="hide-sm mono">${e.dlp_raw_score}</td>
+          <td class="hide-sm mono">${(e.dlp_types || []).join(", ") || "-"}</td>
+          <td class="hide-sm">${trafficPill(Boolean(e.is_background))}</td>
+        </tr>
+      `).join("");
+
+      const domains = summary.top_domains || [];
+      const dlp = summary.dlp_types || [];
+      const rows = [];
+      const size = Math.max(domains.length, dlp.length, 1);
+      for (let i = 0; i < size; i++) {
+        const d = domains[i];
+        const t = dlp[i];
+        rows.push(`<tr><td class="mono">${d ? `${d[0]} (${d[1]})` : "-"}</td><td class="mono">${t ? `${t[0]} (${t[1]})` : "-"}</td></tr>`);
+      }
+      $("summaryRows").innerHTML = rows.join("");
+      $("updatedAt").textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+    }
+
+    $("refresh").addEventListener("click", () => refresh().catch(() => {}));
+    decisionEl.addEventListener("change", () => refresh().catch(() => {}));
+    showBgEl.addEventListener("change", () => refresh().catch(() => {}));
+    searchEl.addEventListener("keydown", (e) => { if (e.key === "Enter") refresh().catch(() => {}); });
+
+    refresh().catch((err) => { $("updatedAt").textContent = `Dashboard error: ${err.message}`; });
+    setInterval(() => refresh().catch(() => {}), 2000);
+  </script>
+</body>
+</html>

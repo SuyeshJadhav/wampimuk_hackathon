@@ -5,6 +5,8 @@ import requests
 import os
 import sys
 from urllib.parse import unquote_plus
+from datetime import datetime, timezone
+from typing import Dict
 
 ADDON_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(ADDON_DIR)
@@ -26,6 +28,21 @@ try:
 except Exception:
     DLPScanner = None  # type: ignore
 
+BACKGROUND_DOMAIN_HINTS = (
+    "spotify",
+    "discord",
+    "microsoft",
+    "office",
+    "telemetry",
+    "gstatic",
+    "googleapis",
+    "doubleclick",
+    "googletagmanager",
+    "google-analytics",
+    "amplitude",
+    "sentry",
+)
+
 class AgencyGuard:
     """
     Main mitmproxy addon for Agency Guard MVP.
@@ -39,6 +56,70 @@ class AgencyGuard:
         self.http.trust_env = False
         self.http.proxies = {"http": "", "https": ""}
         self.local_dlp = DLPScanner() if DLPScanner else None
+        self.events_url = config.RISK_ENGINE_URL.rsplit("/evaluate", 1)[0] + "/api/events/ingest"
+
+    def _is_background_traffic(self, headers: Dict[str, str], domain: str, url: str) -> bool:
+        h = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+        ua = h.get("user-agent", "").lower()
+        accept = h.get("accept", "").lower()
+        lowered = f"{domain} {url} {ua}".lower()
+        if any(token in lowered for token in BACKGROUND_DOMAIN_HINTS):
+            return True
+
+        if "curl/" in ua or "postmanruntime/" in ua:
+            return False
+
+        sec_fetch_dest = h.get("sec-fetch-dest", "").lower()
+        sec_fetch_mode = h.get("sec-fetch-mode", "").lower()
+        sec_fetch_site = h.get("sec-fetch-site", "").lower()
+        is_nav = (
+            sec_fetch_dest == "document"
+            or sec_fetch_mode == "navigate"
+            or ("text/html" in accept and sec_fetch_site in {"same-origin", "same-site", "none"})
+        )
+        if is_nav:
+            return False
+
+        return True
+
+    def _emit_event(
+        self,
+        *,
+        domain: str,
+        url: str,
+        method: str,
+        headers: Dict[str, str],
+        decision: str,
+        score: int,
+        dlp_types=None,
+        dlp_raw_score: int = 0,
+        reasons=None,
+    ) -> None:
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "domain": domain,
+            "url": url,
+            "method": method,
+            "decision": decision,
+            "score": int(score),
+            "rookie_score": 0,
+            "trust_tier": "UNKNOWN",
+            "dlp_raw_score": int(dlp_raw_score),
+            "dlp_types": dlp_types or [],
+            "dlp_findings_count": len(dlp_types or []),
+            "reasons": reasons or [],
+            "user_agent": str((headers or {}).get("user-agent", "")),
+            "is_background": self._is_background_traffic(headers, domain, url),
+        }
+        try:
+            self.http.post(
+                self.events_url,
+                json=payload,
+                timeout=(0.5, 1.5),
+                proxies={"http": "", "https": ""},
+            )
+        except Exception:
+            pass
 
     def load(self, loader):
         ctx.log.info(
@@ -118,6 +199,17 @@ class AgencyGuard:
                     f"[BLOCKED-LOCAL-DLP] {domain} | {method} {normalized_url} | "
                     f"findings={len(local_findings)}"
                 )
+                self._emit_event(
+                    domain=domain,
+                    url=normalized_url,
+                    method=method,
+                    headers=headers,
+                    decision=decision,
+                    score=score,
+                    dlp_types=[f.get("type", "UNKNOWN") for f in local_findings],
+                    dlp_raw_score=int(local.get("total_score", 0)),
+                    reasons=["Sensitive data detected in POST body (local DLP)"],
+                )
                 flow.response = http.Response.make(
                     403,
                     b"<h1>Blocked by AgencyGuard (DLP)</h1>",
@@ -140,6 +232,15 @@ class AgencyGuard:
         except Exception as e:
             ctx.log.warn(f"Failed to call Risk Engine ({config.RISK_ENGINE_URL}): {e!r}")
             result = {"decision": "ALLOW", "score": 0, "details": {}}
+            self._emit_event(
+                domain=domain,
+                url=normalized_url,
+                method=method,
+                headers=headers,
+                decision="ALLOW",
+                score=0,
+                reasons=[f"Risk engine call failed: {type(e).__name__}"],
+            )
 
         # Enforce decision
         decision = result.get("decision", "ALLOW")
