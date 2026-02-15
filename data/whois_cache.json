@@ -1,0 +1,204 @@
+{
+  "domains": {
+    "github.com": {
+      "cached_at": 1771142724,
+      "age_days": 6703,
+      "creation_date_utc": "2007-10-09T18:20:50+00:00"
+    },
+    "cursor.sh": {
+      "cached_at": 1771142725,
+      "age_days": null,
+      "error": "WHOIS lookup timed out"
+    },
+    "chatgpt.com": {
+      "cached_at": 1771142742,
+      "age_days": 1172,
+      "creation_date_utc": "2022-11-30T23:59:19+00:00"
+    },
+    "whatsapp.net": {
+      "cached_at": 1771142751,
+      "age_days": 6204,
+      "creation_date_utc": "2009-02-20T00:48:09+00:00"
+    },
+    "spotify.com": {
+      "cached_at": 1771142752,
+      "age_days": 7237,
+      "creation_date_utc": "2006-04-23T09:07:50+00:00"
+    },
+    "microsoft.com": {
+      "cached_at": 1771142807,
+      "age_days": 12708,
+      "creation_date_utc": "1991-05-02T04:00:00+00:00"
+    },
+    "apple.com": {
+      "cached_at": 1771142820,
+      "age_days": 14241,
+      "creation_date_utc": "1987-02-19T05:00:00+00:00"
+    },
+    "discord.com": {
+      "cached_at": 1771142888,
+      "age_days": 9231,
+      "creation_date_utc": "2000-11-06T11:45:38+00:00"
+    },
+    "vscode-cdn.net": {
+      "cached_at": 1771142959,
+      "age_days": 1430,
+      "creation_date_utc": "2022-03-17T15:20:08+00:00"
+    },
+    "pastebin.com": {
+      "cached_at": 1771143114,
+      "age_days": 8565,
+      "creation_date_utc": "2002-09-03T22:42:07+00:00"
+    },
+    "discordapp.com": {
+      "cached_at": 1771143211,
+      "age_days": 4006,
+      "creation_date_utc": "2015-02-26T22:47:43+00:00"
+    },
+    "githubcopilot.com": {
+      "cached_at": 1771143228,
+      "age_days": 1692,
+      "creation_date_utc": "2021-06-29T00:10:33+00:00"
+    },
+    "exp-tas.com": {
+      "cached_at": 1771143295,
+      "age_days": null,
+      "error": "WHOIS lookup timed out"
+    },
+    "googleapis.com": {
+      "cached_at": 1771144300,
+      "age_days": 7691,
+      "creation_date_utc": "2005-01-25T08:00:00+00:00"
+    },
+    "google.com": {
+      "cached_at": 1771144300,
+      "age_days": 10380,
+      "creation_date_utc": "1997-09-15T04:00:00+00:00"
+    },
+    "gstatic.com": {
+      "cached_at": 1771144475,
+      "age_days": 6579,
+      "creation_date_utc": "2008-02-11T08:00:00+00:00"
+    },
+    "googleusercontent.com": {
+      "cached_at": 1771144476,
+      "age_days": 6298,
+      "creation_date_utc": "2008-11-17T15:58:29+00:00"
+    },
+    "myworkdayjobs.com": {
+      "cached_at": 1771144487,
+      "age_days": 4357,
+      "creation_date_utc": "2014-03-13T00:06:42+00:00"
+    },
+    "reddit.com": {
+      "cached_at": 1771144488,
+      "age_days": 7596,
+      "creation_date_utc": "2005-04-29T17:59:19+00:00"
+    },
+    "redditstatic.com": {
+      "cached_at": 1771144491,
+      "age_days": 5211,
+      "creation_date_utc": "2011-11-09T19:03:15+00:00"
+    },
+    "googletagmanager.com": {
+      "cached_at": 1771144492,
+      "age_days": 5209,
+      "creation_date_utc": "2011-11-11T23:39:05+00:00"
+    },
+    "rlcdn.com": {
+      "cached_at": 1771144492,
+      "age_days": 5962,
+      "creation_date_utc": "2009-10-20T03:59:44+00:00"
+    },
+    "redditmedia.com": {
+      "cached_at": 1771144493,
+      "age_days": 6760,
+      "creation_date_utc": "2007-08-13T20:54:27+00:00"
+    },
+    "redd.it": {
+      "cached_at": 1771144493,
+      "age_days": 5738,
+      "creation_date_utc": "2010-05-31T09:49:27+00:00"
+    },
+    "doubleclick.net": {
+      "cached_at": 1771144494,
+      "age_days": 10988,
+      "creation_date_utc": "1996-01-16T05:00:00+00:00"
+    },
+    "facebook.com": {
+      "cached_at": 1771144494,
+      "age_days": 10550,
+      "creation_date_utc": "1997-03-29T05:00:00+00:00"
+    },
+    "cdn-apple.com": {
+      "cached_at": 1771144495,
+      "age_days": 5581,
+      "creation_date_utc": "2010-11-04T14:41:19+00:00"
+    },
+    "icloud.com": {
+      "cached_at": 1771144496,
+      "age_days": 9893,
+      "creation_date_utc": "1999-01-15T05:00:00+00:00"
+    },
+    "ad.gt": {
+      "cached_at": 1771145024,
+      "age_days": null,
+      "error": "WHOIS lookup failed: WhoisError"
+    },
+    "amazon-adsystem.com": {
+      "cached_at": 1771145024,
+      "age_days": null,
+      "error": "WHOIS lookup timed out"
+    },
+    "vlitag.com": {
+      "cached_at": 1771145026,
+      "age_days": null,
+      "error": "WHOIS lookup timed out"
+    },
+    "4dex.io": {
+      "cached_at": 1771145028,
+      "age_days": 2876,
+      "creation_date_utc": "2018-04-02T08:06:54+00:00"
+    },
+    "githubusercontent.com": {
+      "cached_at": 1771145029,
+      "age_days": 4391,
+      "creation_date_utc": "2014-02-06T21:17:00+00:00"
+    },
+    "recaptcha.net": {
+      "cached_at": 1771145079,
+      "age_days": 6980,
+      "creation_date_utc": "2007-01-06T05:37:18+00:00"
+    },
+    "cloudflare.com": {
+      "cached_at": 1771145080,
+      "age_days": 6206,
+      "creation_date_utc": "2009-02-17T22:07:54+00:00"
+    },
+    "example.com": {
+      "cached_at": 1771145081,
+      "age_days": 11143,
+      "creation_date_utc": "1995-08-14T04:00:00+00:00"
+    },
+    "trinitypropertiesapartments.com": {
+      "cached_at": 1771145117,
+      "age_days": 7907,
+      "creation_date_utc": "2004-06-22T10:55:38+00:00"
+    },
+    "google-analytics.com": {
+      "cached_at": 1771145117,
+      "age_days": 7517,
+      "creation_date_utc": "2005-07-18T07:00:00+00:00"
+    },
+    "editmysite.com": {
+      "cached_at": 1771145118,
+      "age_days": 9654,
+      "creation_date_utc": "1999-09-10T23:23:48+00:00"
+    },
+    "transfer.sh": {
+      "cached_at": 1771145122,
+      "age_days": 4665,
+      "creation_date_utc": "2013-05-08T11:01:47+00:00"
+    }
+  }
+}

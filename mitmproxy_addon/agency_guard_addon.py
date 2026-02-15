@@ -2,9 +2,18 @@
 
 from mitmproxy import http, ctx
 import requests
-import json
+import os
+import sys
 
-from . import utils, config
+try:
+    from . import utils, config
+except ImportError:
+    # mitmproxy loads addon scripts outside package context.
+    addon_dir = os.path.dirname(os.path.abspath(__file__))
+    if addon_dir not in sys.path:
+        sys.path.insert(0, addon_dir)
+    import utils  # type: ignore
+    import config  # type: ignore
 
 class AgencyGuard:
     """
@@ -12,6 +21,17 @@ class AgencyGuard:
     Intercepts HTTP(S) requests, sends to Risk Engine,
     enforces block/warn/allow decisions.
     """
+
+    def __init__(self):
+        # Avoid proxy loops: don't inherit HTTP(S)_PROXY env vars for internal Risk Engine calls.
+        self.http = requests.Session()
+        self.http.trust_env = False
+        self.http.proxies = {"http": "", "https": ""}
+
+    def load(self, loader):
+        ctx.log.info(
+            f"AgencyGuard loaded | risk_engine={config.RISK_ENGINE_URL} | trust_env={self.http.trust_env}"
+        )
 
     def request(self, flow: http.HTTPFlow):
         """
@@ -28,6 +48,7 @@ class AgencyGuard:
 
         domain = utils.extract_domain(url)
         normalized_url = utils.normalize_url(url)
+        body_len = len(body.encode("utf-8")) if body else 0
 
         # Detect sensitive keywords in body (quick local scan)
         keywords_found = []
@@ -50,27 +71,55 @@ class AgencyGuard:
             "keywords_found": keywords_found,
             "files": files_info
         }
+        ctx.log.info(
+            f"[REQ] {method} {normalized_url} | domain={domain} | body_bytes={body_len} | "
+            f"keywords={len(keywords_found)} | files={len(files_info)}"
+        )
 
         try:
-            response = requests.post(config.RISK_ENGINE_URL, json=payload, timeout=3)
+            response = self.http.post(
+                config.RISK_ENGINE_URL,
+                json=payload,
+                timeout=(1.0, 4.0),
+                proxies={"http": "", "https": ""},
+            )
             result = response.json()
         except Exception as e:
-            ctx.log.warn(f"Failed to call Risk Engine: {e}")
+            ctx.log.warn(f"Failed to call Risk Engine ({config.RISK_ENGINE_URL}): {e!r}")
             result = {"decision": "ALLOW", "score": 0, "details": {}}
 
         # Enforce decision
         decision = result.get("decision", "ALLOW")
+        score = result.get("score", 0)
+        flow.metadata["agencyguard_decision"] = decision
+        flow.metadata["agencyguard_score"] = score
+        flow.comment = f"AgencyGuard {decision} score={score}"
+        ctx.log.info(
+            f"[RISK] decision={decision} score={score} | domain={domain} | method={method} | url={normalized_url}"
+        )
         if decision == "BLOCK":
             ctx.log.info(f"[BLOCKED] {domain} | {method} {normalized_url}")
             flow.response = http.Response.make(
                 403,
                 b"<h1>Blocked by AgencyGuard</h1>",
-                {"Content-Type": "text/html"}
+                {
+                    "Content-Type": "text/html",
+                    "X-AgencyGuard-Decision": decision,
+                    "X-AgencyGuard-Score": str(score),
+                }
             )
         elif decision == "WARN":
             ctx.log.info(f"[WARNING] {domain} | {method} {normalized_url}")
             # Optionally inject warning in response or log only
         else:
             ctx.log.info(f"[ALLOWED] {domain} | {method} {normalized_url}")
+
+    def response(self, flow: http.HTTPFlow):
+        decision = flow.metadata.get("agencyguard_decision")
+        score = flow.metadata.get("agencyguard_score")
+        if not decision or flow.response is None:
+            return
+        flow.response.headers["X-AgencyGuard-Decision"] = str(decision)
+        flow.response.headers["X-AgencyGuard-Score"] = str(score)
 
 addons = [AgencyGuard()]

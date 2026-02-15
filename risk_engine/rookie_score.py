@@ -20,7 +20,15 @@ ROOKIE_AGE_THRESHOLD_DAYS = 30          # "new domain" threshold
 WHOIS_TIMEOUT_SECONDS = 1.5             # keep proxy responsive
 WHOIS_CACHE_TTL_SECONDS = 7 * 24 * 3600 # 7 days
 
-ALLOWLIST = {"ncsu.edu", "github.com", "linkedin.com", "httpbin.org"}
+ALLOWLIST = {
+    "ncsu.edu",
+    "github.com",
+    "linkedin.com",
+    "httpbin.org",
+    "spotify.com",
+    "discord.gg",
+    "microsoft.com",
+}
 DENYLIST = {"pastebin.com", "transfer.sh", "0x0.st"}
 RISKY_TLDS = {"zip", "xyz", "top", "click", "mov", "ru", "tk"}
 
@@ -163,9 +171,12 @@ def compute_rookie_score(domain: str, method: str, headers: Dict[str, Any], file
 
     # 1) Allow/deny lists
     if host in ALLOWLIST:
-        score -= 25
-        reasons.append("Allowlisted destination")
+        # Fast-path known safe domains to keep proxy path responsive.
+        reasons.append("Allowlisted destination (fast-path)")
         signals["allowlisted"] = True
+        score = 0
+        trust = "HIGH"
+        return {"rookie_score": score, "trust_tier": trust, "reasons": reasons, "signals": signals}
     if host in DENYLIST:
         score += 60
         reasons.append("Denylisted destination")
