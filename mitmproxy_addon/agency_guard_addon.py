@@ -2,9 +2,9 @@
 
 from mitmproxy import http, ctx
 import requests
-import json
+from urllib.parse import urlparse
 
-import utils 
+import utils
 import config
 
 import uuid
@@ -51,6 +51,46 @@ class AgencyGuard:
     Intercepts HTTP(S) requests, sends to Risk Engine,
     enforces block/warn/allow decisions.
     """
+
+    def _is_noise(self, flow: http.HTTPFlow, url: str, method: str, headers: dict) -> bool:
+        """
+        Return True when this request should be ignored by AgencyGuard.
+        """
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower()
+        netloc = (parsed.netloc or "").lower()
+        path = (parsed.path or "").lower()
+        content_type = (headers.get("content-type") or "").lower()
+
+        # Explicit opt-out for known noisy dashboard calls
+        if (headers.get(config.IGNORE_HEADER) or "").strip() == "1":
+            return True
+
+        # Ignore local infra traffic (dashboard, API, risk engine, etc.)
+        if hostname in config.IGNORE_HOSTS or netloc in config.IGNORE_NETLOCS:
+            return True
+
+        # Ignore static assets and framework/dev-server plumbing
+        if any(path.startswith(prefix) for prefix in config.IGNORE_PATH_PREFIXES):
+            return True
+        if any(path.endswith(ext) for ext in config.IGNORE_FILE_EXTENSIONS):
+            return True
+
+        # Only inspect data-leaving request methods
+        if method.upper() not in config.ANALYZE_METHODS:
+            return True
+
+        # Ignore non-textual bodies to reduce noise and CPU work
+        text_types = (
+            "application/x-www-form-urlencoded",
+            "application/json",
+            "text/",
+            "multipart/form-data",
+        )
+        if not any(t in content_type for t in text_types):
+            return True
+
+        return False
 
     def request(self, flow: http.HTTPFlow):
 
@@ -102,6 +142,9 @@ class AgencyGuard:
             body = flow.request.get_text(strict=False)
         except Exception as e:
             ctx.log.warn(f"Failed to read request: {e}")
+            return
+
+        if self._is_noise(flow, url, method, headers):
             return
 
         domain = utils.extract_domain(url)

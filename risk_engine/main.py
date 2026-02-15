@@ -21,6 +21,7 @@ from typing import Dict, Any, List
 
 from .dlp_scanner import DLPScanner
 from .rookie_score import compute_rookie_score
+from .tnc_analysis import TnCAnalyzer
 
 # Optional module imports
 try:
@@ -42,6 +43,7 @@ app = FastAPI(title="Agency Guard Risk Engine")
 # -----------------------------------
 
 dlp_scanner = DLPScanner()
+tnc_analyzer = TnCAnalyzer()
 
 rookie_score = RookieScore() if RookieScore else None
 
@@ -60,6 +62,7 @@ class EvaluateRequest(BaseModel):
     body: str = ""
     keywords_found: List[str] = []
     files: List[Dict] = []
+    tnc_text: str = ""
 
 
 
@@ -189,40 +192,66 @@ def evaluate(request: EvaluateRequest):
         )
 
 
-        # -------------------
-        # Rookie Score
-        # -------------------
 
+
+        # Future modules go here
+
+    # -------------------
+    # TnC Analysis
+    # -------------------
+
+    if request.tnc_text:
         try:
-            rookie_result = compute_rookie_score(
-                domain=request.domain,
-                method=request.method,
-                headers=request.headers,
-                files=request.files
-            )
+            tnc_result = tnc_analyzer.analyze_text(request.tnc_text)
             module_results.append(
                 ModuleResult(
-                    module="ROOKIE_SCORE",
-                    score=rookie_result["rookie_score"],
+                    module="TNC_ANALYSIS",
+                    score=tnc_result["tnc_score"],
                     details={
-                        "trust_tier": rookie_result["trust_tier"],
-                        "reasons": rookie_result["reasons"],
-                        "signals": rookie_result["signals"]
+                        "status": tnc_result["status"],
+                        "findings": tnc_result["findings"]
                     }
                 )
             )
-
         except Exception as e:
             module_results.append(
                 ModuleResult(
-                    module="ROOKIE_SCORE",
+                    module="TNC_ANALYSIS",
                     score=0,
                     details={"error": str(e)}
                 )
             )
+    # -------------------
+    # Rookie Score
+    # -------------------
 
+    try:
+        rookie_result = compute_rookie_score(
+            domain=request.domain,
+            method=request.method,
+            headers=request.headers,
+            files=request.files
+        )
+        module_results.append(
+            ModuleResult(
+                module="ROOKIE_SCORE",
+                score=rookie_result["rookie_score"],
+                details={
+                    "trust_tier": rookie_result["trust_tier"],
+                    "reasons": rookie_result["reasons"],
+                    "signals": rookie_result["signals"]
+                }
+            )
+        )
 
-        # Future modules go here
+    except Exception as e:
+        module_results.append(
+            ModuleResult(
+                module="ROOKIE_SCORE",
+                score=0,
+                details={"error": str(e)}
+            )
+        )
 
 
     # -----------------------------------
