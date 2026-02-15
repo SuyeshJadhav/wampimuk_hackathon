@@ -4,7 +4,8 @@ from mitmproxy import http, ctx
 import requests
 import json
 
-from . import utils, config
+import utils 
+import config
 
 class AgencyGuard:
     """
@@ -52,7 +53,12 @@ class AgencyGuard:
         }
 
         try:
-            response = requests.post(config.RISK_ENGINE_URL, json=payload, timeout=3)
+            response = requests.post(
+    config.RISK_ENGINE_URL,
+    json=payload,
+    timeout=3,
+    proxies={"http": None, "https": None}
+)
             result = response.json()
         except Exception as e:
             ctx.log.warn(f"Failed to call Risk Engine: {e}")
