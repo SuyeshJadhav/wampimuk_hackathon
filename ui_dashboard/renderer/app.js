@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	async function fetchTraffic() {
 		try {
-			const res = await fetch('http://localhost:5000/api/traffic');
+			const res = await fetch('http://localhost:8000/api/traffic');
 			const data = await res.json();
 
 			trafficBody.innerHTML = ''; // Clear table
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			// Update UI state
 			dropZone.innerHTML = `<div class="icon-lg">⏳</div><h3>Scanning ${file.name}...</h3>`;
 
-			const res = await fetch('http://localhost:5000/api/scan-pdf', {
+			const res = await fetch('http://localhost:8000/api/scan-pdf', {
 				method: 'POST',
 				body: formData
 			});
@@ -119,10 +119,10 @@ document.addEventListener('DOMContentLoaded', () => {
 		try {
 			analyzeBtn.textContent = 'Running Analysis...';
 
-			const res = await fetch('http://localhost:5000/api/analyze-tnc', {
+			const res = await fetch('http://localhost:8000/analyze-tnc', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ text })
+				body: JSON.stringify({ tnc_text: text, url: '', domain: '' })
 			});
 
 			const data = await res.json();

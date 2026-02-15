@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
-let flaskProcess = null;
+let backendProcess = null;
 let mitmProcess = null;
 
 function createWindow() {
@@ -21,27 +21,33 @@ function createWindow() {
 }
 
 function startBackend() {
-	// 1. Spawning Flask API using venv Python
-	const flaskPath = path.join(__dirname, 'backend', 'api.py');
+	// Spawn the FastAPI Risk Engine via uvicorn
+	// This replaces the old Flask backend — one unified API on port 8000
 	const projectRoot = path.join(__dirname, '..');
 	const venvPython = path.join(projectRoot, 'venv', 'Scripts', 'python.exe');
-	flaskProcess = spawn(venvPython, [flaskPath], {
-		cwd: projectRoot // Run from project root to access modules
+
+	backendProcess = spawn(venvPython, [
+		'-m', 'uvicorn',
+		'risk_engine.main:app',
+		'--host', '127.0.0.1',
+		'--port', '8000',
+		'--reload'
+	], {
+		cwd: projectRoot
 	});
 
-	flaskProcess.stdout.on('data', (data) => {
-		console.log(`Flask Output: ${data}`);
+	backendProcess.stdout.on('data', (data) => {
+		console.log(`[Risk Engine] ${data}`);
 	});
 
-	flaskProcess.stderr.on('data', (data) => {
-		console.log(`Flask Log: ${data}`);
+	backendProcess.stderr.on('data', (data) => {
+		console.log(`[Risk Engine] ${data}`);
 	});
 
-	console.log("Flask backend spawned");
+	console.log("Risk Engine (FastAPI) spawned on port 8000");
 
-	// 2. Mitmproxy — user runs it manually with the inspect.py addon.
-	//    The dashboard reads from intercept_log.json written by the addon.
-	//    To start mitmproxy with the addon: mitmproxy -s mitmproxy_addon/inspect.py
+	// Mitmproxy — user runs it manually with the addon.
+	// The dashboard reads from intercept_log.json written by the addon.
 	console.log("Dashboard will read traffic from intercept_log.json (run mitmproxy separately)");
 }
 
@@ -64,6 +70,6 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
 	// Kill child processes
-	if (flaskProcess) flaskProcess.kill();
+	if (backendProcess) backendProcess.kill();
 	if (mitmProcess) mitmProcess.kill();
 });

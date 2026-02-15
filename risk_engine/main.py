@@ -15,7 +15,13 @@ Responsibilities:
 This file is the central orchestrator.
 """
 
-from fastapi import FastAPI
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import FastAPI, File, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
@@ -35,6 +41,19 @@ except ImportError:
 # -----------------------------------
 
 app = FastAPI(title="Agency Guard Risk Engine")
+
+# Enable CORS so the Electron renderer (file://) can call us
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Project paths
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+INTERCEPT_LOG_PATH = PROJECT_ROOT / "mitmproxy_addon" / "intercept_log.json"
 
 
 
@@ -274,6 +293,79 @@ def evaluate(request: EvaluateRequest):
 
     }
 
+
+
+# ===================================
+# DASHBOARD ENDPOINTS
+# ===================================
+# These replace the Flask backend (ui_dashboard/backend/api.py).
+# The Electron renderer calls these directly on port 8000.
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/traffic")
+def get_traffic():
+    """
+    Returns the last 50 intercepted requests from the mitmproxy
+    addon's log file, newest first.
+    """
+    try:
+        if INTERCEPT_LOG_PATH.exists():
+            with open(INTERCEPT_LOG_PATH, "r") as f:
+                logs = json.load(f)
+            return logs[-50:][::-1]
+        return []
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/scan-pdf")
+async def scan_pdf(file: UploadFile = File(...)):
+    """
+    Accepts a PDF upload, extracts text, and auto-detects sensitive
+    data using DLP regex patterns from dlp_rules.py.
+    """
+    import sys
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+
+    from file_analysis import extract_text_from_pdf
+    from file_analysis.redaction import scan_text
+
+    try:
+        pdf_bytes = await file.read()
+
+        # 1. Extract text
+        result = extract_text_from_pdf(pdf_bytes)
+        if result.get("error"):
+            return {"error": result["error"]}
+
+        text = result["text"]
+
+        # 2. Auto-detect findings using DLP regex (dynamic!)
+        raw_findings = scan_text(text)
+
+        # Deduplicate by value for the UI
+        seen = set()
+        findings = []
+        for f in raw_findings:
+            if f["match"] not in seen:
+                seen.add(f["match"])
+                findings.append({"type": f["type"], "value": f["match"]})
+
+        return {
+            "text_preview": text[:500] + "..." if len(text) > 500 else text,
+            "page_count": result["page_count"],
+            "findings": findings,
+            "metadata": result.get("metadata", {}),
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # -----------------------------------
