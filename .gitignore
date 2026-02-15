@@ -3,4 +3,5 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-data/whois_cache.json																																			
+risk_engine/.venv/
+data/whois_cache.json
