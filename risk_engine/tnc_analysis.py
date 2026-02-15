@@ -5,7 +5,7 @@ class TnCAnalyzer:
         # Define "Red Flags" and their risk weight (1-10)
         # These can be expanded or moved to a config file later [cite: 4]
         self.risk_patterns = {
-            "data_selling": (r"sell|share|transfer.*third parties|affiliates", 8),
+            "data_selling": (r"sell.*(data|info)|share.*(data|info)|transfer.*third parties|affiliates", 8),
             "arbitration": (r"binding arbitration|waive.*class action", 7),
             "tracking": (r"track.*behavior|cross-site tracking|cookies.*third-party", 5),
             "retention": (r"retain.*indefinitely|keep.*data.*forever", 6),
